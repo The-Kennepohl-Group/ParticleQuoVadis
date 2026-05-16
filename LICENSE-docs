@@ -1,0 +1,29 @@
+Documentation License
+
+The documentation and pedagogical content in this repository — including
+README.md, PEDAGOGY.md, CHANGELOG.md, in-code comments that explain pedagogy,
+screenshots, example data files, and any other written materials — is licensed
+under the Creative Commons Attribution-ShareAlike 4.0 International License
+(CC-BY-SA 4.0).
+
+You are free to:
+
+- Share — copy and redistribute the material in any medium or format
+- Adapt — remix, transform, and build upon the material for any purpose,
+  even commercially
+
+Under the following terms:
+
+- Attribution — You must give appropriate credit (cite the original repository
+  and author), provide a link to the license, and indicate if changes were made.
+- ShareAlike — If you remix, transform, or build upon the material, you must
+  distribute your contributions under the same license as the original.
+
+Full license text: https://creativecommons.org/licenses/by-sa/4.0/legalcode
+Summary: https://creativecommons.org/licenses/by-sa/4.0/
+
+Copyright (c) 2026 Pierre Kennepohl
+
+Note: This documentation license is separate from the MIT License that covers
+the source code (see LICENSE). Code contributions to this repository are
+released under MIT; documentation contributions under CC-BY-SA 4.0.

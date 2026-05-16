@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this software in teaching or research, please cite it as below."
+title: "Particle, Quo Vadis?: An interactive comparison of classical and quantum particles in a box"
+authors:
+  - family-names: Kennepohl
+    given-names: Pierre
+    affiliation: "University of Calgary"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"   # add your ORCID if you'd like
+type: software
+repository-code: "https://github.com/pkennepohl/particle-quo-vadis"
+url: "https://pkennepohl.github.io/particle-quo-vadis/"
+license: MIT
+keywords:
+  - quantum mechanics
+  - particle in a box
+  - chemistry education
+  - physics education
+  - interactive simulation
+  - teaching tool
+  - quantization
+  - Born rule
+abstract: >
+  An interactive browser-based simulation comparing classical and quantum
+  particles confined to a one-dimensional box. The tool visualizes
+  measurement of position and energy, the Born rule, energy quantization,
+  the distinction between intrinsic spectral width and instrument resolution,
+  and the contrast between classical (ballistic or Brownian) and quantum
+  motion. Designed for chemistry and physics teaching at the undergraduate
+  level.
+version: 1.0.0
+date-released: 2026-05-16
