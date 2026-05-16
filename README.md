@@ -2,7 +2,7 @@
 
 An interactive simulation comparing classical and quantum particles confined to a one-dimensional box. Built as a teaching tool for chemistry and physics students.
 
-![Screenshot of the application]( docs/images/screenshot.png )
+![Screenshot of the application](docs/images/screenshot.png)
 
 ## What this teaches
 
@@ -43,13 +43,13 @@ The simulation automatically pauses every 10,000 measurements. Press Play to con
 
 ## How it's built
 
-- **One React component** in [`src/ParticleQuoVadis.jsx`](src/ParticleQuoVadis.jsx). All physics, UI, and export logic live here.
+- **One React component** in [`src/ParticleQuoVadis.js`](src/ParticleQuoVadis.js). All physics, UI, and export logic live here.
 - **No build step required.** The HTML loads React via importmap, and Babel-standalone compiles the JSX in the browser at load time. This makes the source easy to read and modify — change the JSX, refresh the page, see the result.
 - **Dependencies** are React 18 and Babel-standalone, both loaded from CDNs (esm.sh and unpkg). All three CDNs are stable and widely used in educational software.
 
 If you want to fork and modify:
 
-1. Open [`src/ParticleQuoVadis.jsx`](src/ParticleQuoVadis.jsx) in your editor.
+1. Open [`src/ParticleQuoVadis.js`](src/ParticleQuoVadis.js) in your editor.
 2. Make changes.
 3. Open [`index.html`](index.html) in your browser to test.
 4. No `npm install` needed.

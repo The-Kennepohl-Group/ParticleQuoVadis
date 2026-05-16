@@ -18,24 +18,13 @@
     #error {
       position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
       color: #e8745a; font-family: 'JetBrains Mono', monospace; font-size: 13px;
-      padding: 24px; text-align: center; line-height: 1.5;
+      padding: 24px; text-align: center; line-height: 1.5; max-width: 700px; margin: 0 auto;
     }
   </style>
 
-  <!--
-    Importmap: tells the browser where to find React when the JSX uses
-    `import React from 'react'`. esm.sh serves these as proper ES modules,
-    so no build step is needed — Babel-standalone handles JSX transformation
-    in the browser at load time.
-  -->
-  <script type="importmap">
-  {
-    "imports": {
-      "react": "https://esm.sh/react@18.3.1",
-      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client"
-    }
-  }
-  </script>
+  <!-- React and ReactDOM as UMD globals (no module system needed) -->
+  <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
 
   <!-- Babel-standalone compiles the JSX at runtime -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -47,30 +36,50 @@
   <div id="error"></div>
 
   <!--
-    The simulation source lives in src/ParticleQuoVadis.jsx for easy reading.
-    Babel transforms it into a real ES module and the browser runs it.
+    The simulation source lives in src/ParticleQuoVadis.js for easy reading
+    and editing. Babel-standalone compiles the JSX in the browser at load time.
+    No build step needed.
   -->
-  <script type="text/babel" data-type="module" data-presets="react">
-    import React from 'react';
-    import { createRoot } from 'react-dom/client';
-    import ParticleQuoVadis from './src/ParticleQuoVadis.jsx';
+  <script type="text/babel" data-presets="react" src="./src/ParticleQuoVadis.js"></script>
 
-    const loading = document.getElementById('loading');
-    if (loading) loading.remove();
-    createRoot(document.getElementById('root')).render(<ParticleQuoVadis />);
+  <!-- Mount the app once Babel has compiled the JSX above -->
+  <script type="text/babel" data-presets="react">
+    // Wait for Babel to finish compiling the src file above
+    function tryMount() {
+      if (typeof ParticleQuoVadis === 'function') {
+        const loading = document.getElementById('loading');
+        if (loading) loading.remove();
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ParticleQuoVadis />);
+      } else {
+        setTimeout(tryMount, 50);
+      }
+    }
+    tryMount();
   </script>
 
   <script>
-    // Surface load-time errors so a student opening the file gets a hint
-    // rather than a blank page when something fails (e.g. offline, blocked CDN).
-    window.addEventListener('error', (e) => {
-      const loading = document.getElementById('loading');
-      const errorEl = document.getElementById('error');
-      if (loading) loading.style.display = 'none';
-      if (errorEl) {
-        errorEl.style.display = 'flex';
-        errorEl.textContent = 'Could not load the simulation. Check your internet connection and refresh, or open the README for troubleshooting.';
+    // If something fails to load (CDN blocked, missing file, etc.), replace
+    // the "Loading…" placeholder with a useful message rather than a blank page.
+    let mounted = false;
+    setTimeout(() => {
+      const root = document.getElementById('root');
+      if (root && root.firstElementChild && root.firstElementChild.id === 'loading') {
+        // Still showing the loading placeholder after 8 seconds — something failed.
+        const loading = document.getElementById('loading');
+        const errorEl = document.getElementById('error');
+        if (loading) loading.style.display = 'none';
+        if (errorEl) {
+          errorEl.style.display = 'flex';
+          errorEl.innerHTML = 'The simulation did not load. Likely causes:<br><br>' +
+            '&bull; Slow or blocked CDN (React or Babel from unpkg.com)<br>' +
+            '&bull; The JSX source file is missing or moved<br>' +
+            '&bull; A JavaScript error — open the browser console (F12) for details';
+        }
       }
+    }, 8000);
+    window.addEventListener('error', (e) => {
+      console.error('Load error:', e.message, e.filename, e.lineno);
     });
   </script>
 </body>
