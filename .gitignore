@@ -23,3 +23,6 @@ examples/local-*
 # Optional Python helper scripts
 __pycache__/
 *.pyc
+
+# Claude Code local tooling / settings (preview launch config, local perms)
+.claude/

@@ -26,8 +26,14 @@
   <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
 
-  <!-- Babel-standalone compiles the JSX at runtime -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Babel-standalone compiles the JSX at runtime. Pinned to 7.x: this
+       app renders with UMD React globals and no bundler, so it needs the
+       "classic" JSX runtime (React.createElement). Babel 8's preset-react
+       defaults to the "automatic" runtime, which emits
+       `import { jsx } from "react/jsx-runtime"` — fatal here ("Cannot use
+       import statement outside a module"). Leaving this URL unpinned let
+       unpkg roll to 8.0.0 and broke the load; keep it pinned. -->
+  <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
 </head>
 <body>
   <div id="root">
@@ -39,8 +45,18 @@
     The simulation source lives in src/ParticleQuoVadis.js for easy reading
     and editing. Babel-standalone compiles the JSX in the browser at load time.
     No build step needed.
+
+    Dev cache-bust: the inline script below appends ?v=<page-load-time> to the
+    source URL so an edit-and-refresh cycle always pulls the fresh file rather
+    than a stale HTTP-cached copy. Harmless in production — the static host's
+    own URL cache still kicks in on the index.html request.
   -->
-  <script type="text/babel" data-presets="react" src="./src/ParticleQuoVadis.js"></script>
+  <script>
+    document.write(
+      '<script type="text/babel" data-presets="react" src="./src/ParticleQuoVadis.js?v=' +
+      Date.now() + '"><\/script>'
+    );
+  </script>
 
   <!-- Mount the app once Babel has compiled the JSX above -->
   <script type="text/babel" data-presets="react">
