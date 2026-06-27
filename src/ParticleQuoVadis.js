@@ -178,6 +178,7 @@ function ParticleQuoVadis() {
   const [waveTimeMult, setWaveTimeMult] = useSavedState('pqv:waveTimeMult', 1);   // visual ψ time-evolution speed
   const [histBins, setHistBins] = useSavedState('pqv:histBins', NBINS_X);         // position-histogram display bins
   const [showOverlay, setShowOverlay] = useSavedState('pqv:showOverlay', false);  // overlay classical + quantum on shared axes
+  const [logE, setLogE] = useSavedState('pqv:logE', false);                       // log scale on the P(E) histograms?
 
   // Derived: probability amplitudes squared
   const probs = useMemo(() => computeProbs(energy, gamma), [energy, gamma]);
@@ -432,6 +433,32 @@ function ParticleQuoVadis() {
   const expectedE = useMemo(() => expectedEnergy(probs), [probs]);
 
   const eBinWidth = E_HIST_MAX / NBINS_E;
+
+  // Smooth analytical P(E) curves for "Show theory" — Gaussian-broadened
+  // eigenstate peaks (quantum) and a single Gaussian at the set energy
+  // (classical), matching the sibling app instead of discrete dashed ticks.
+  // σ_eff is floored to ~one bin so the curve stays visible even at σ = 0.
+  const energyTheoryCurves = useMemo(() => {
+    const N = 160;
+    const sigmaEff = Math.max(instrSigma, eBinWidth / Math.sqrt(2 * Math.PI));
+    const norm = 1 / (sigmaEff * Math.sqrt(2 * Math.PI));
+    const twoSig2 = 2 * sigmaEff * sigmaEff;
+    const quantum = new Array(N);
+    const classical = new Array(N);
+    for (let i = 0; i < N; i++) {
+      const E = (E_HIST_MAX * i) / (N - 1);
+      let dq = 0;
+      for (let k = 0; k < N_EIGEN; k++) {
+        const dE = E - eigenE[k];
+        dq += probs[k] * norm * Math.exp(-(dE * dE) / twoSig2);
+      }
+      quantum[i] = { E, d: dq };
+      const dEc = E - energy;
+      classical[i] = { E, d: norm * Math.exp(-(dEc * dEc) / twoSig2) };
+    }
+    return { quantum, classical };
+  }, [probs, instrSigma, energy, eBinWidth]);
+
   const classicalEnergyDensity = useMemo(() => {
     const total = classicalEnergyMeasRef.current;
     if (total === 0) return new Array(NBINS_E).fill(0);
@@ -823,7 +850,7 @@ function ParticleQuoVadis() {
         >
           <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start', flexWrap: 'wrap' }}>
             {/* Γ / σ controls */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: '0 1 300px', minWidth: 260 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: '0 0 320px', minWidth: 0 }}>
               <PreferenceNumberRow
                 label="Spectral resolution Γ"
                 value={gamma}
@@ -1154,32 +1181,27 @@ function ParticleQuoVadis() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 130px', gap: 10, alignItems: 'stretch' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
-                <ParticleView
-                  x={personRef.current.x}
-                  recentMeasurements={recentClassicalPosRef.current}
-                  col={COL_CLASSICAL}
-                  wall={COL_INK}
-                  bg={COL_PANEL}
-                />
-                <PositionHistogram
-                  hist={rebinDensity(classicalPosDensity, histBins)}
-                  overlay={null}
-                  col={COL_CLASSICAL}
-                  ink={COL_INK}
-                  inkDim={COL_INK_DIM}
-                  rule={COL_RULE}
-                  styles={styles}
-                  label={null}
-                  recentMarkers={recentClassicalPosRef.current}
-                  accentColor={COL_CLASSICAL}
-                  meanX={classicalStepsRef.current > 0 ? classicalPosSumRef.current / classicalStepsRef.current : null}
-                />
-              </div>
+              {/* row 1: 2D box (left) + P(E) sharing the energy y-axis (right) */}
+              <BoxSimView
+                kind="classical"
+                particleX={personRef.current.x}
+                recentMeasurements={recentClassicalPosRef.current}
+                eSet={energy}
+                eigenValues={eigenE}
+                showEigen={showEigen}
+                col={COL_CLASSICAL}
+                ink={COL_INK}
+                inkDim={COL_INK_DIM}
+                bg={COL_PANEL}
+                styles={styles}
+                accentColor={COL_CLASSICAL}
+              />
               <VerticalEnergyHistogram
                 density={classicalEnergyDensity}
                 eigenValues={eigenE}
-                theoretical={null}
+                theoryCurve={showTheory ? energyTheoryCurves.classical : null}
+                logY={logE}
+                onToggleLog={() => setLogE(!logE)}
                 col={COL_CLASSICAL}
                 ink={COL_INK}
                 inkDim={COL_INK_DIM}
@@ -1190,6 +1212,27 @@ function ParticleQuoVadis() {
                 eSet={energy}
                 accentColor={COL_CLASSICAL}
                 meanE={classicalEnergyMeasRef.current > 0 ? classicalEnergySumRef.current / classicalEnergyMeasRef.current : null}
+              />
+              {/* row 2: P(x) sharing the x-axis (left) + summary (right) */}
+              <PositionHistogram
+                hist={rebinDensity(classicalPosDensity, histBins)}
+                overlay={null}
+                col={COL_CLASSICAL}
+                ink={COL_INK}
+                inkDim={COL_INK_DIM}
+                rule={COL_RULE}
+                styles={styles}
+                label={null}
+                recentMarkers={recentClassicalPosRef.current}
+                accentColor={COL_CLASSICAL}
+                meanX={classicalStepsRef.current > 0 ? classicalPosSumRef.current / classicalStepsRef.current : null}
+              />
+              <PanelSummary
+                meanX={classicalStepsRef.current > 0 ? classicalPosSumRef.current / classicalStepsRef.current : null}
+                meanE={classicalEnergyMeasRef.current > 0 ? classicalEnergySumRef.current / classicalEnergyMeasRef.current : null}
+                col={COL_CLASSICAL}
+                inkDim={COL_INK_DIM}
+                styles={styles}
               />
             </div>
           </section>
@@ -1203,35 +1246,28 @@ function ParticleQuoVadis() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 130px', gap: 10, alignItems: 'stretch' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
-                <WavefunctionView
-                  density={psiDisplayDensity}
-                  recentMeasurements={recentPosMeasRef.current}
-                  col={COL_QUANTUM}
-                  ink={COL_INK}
-                  inkDim={COL_INK_DIM}
-                  bg={COL_PANEL}
-                  styles={styles}
-                  showWave={showTheory}
-                />
-                <PositionHistogram
-                  hist={rebinDensity(quantumPosDensity, histBins)}
-                  overlay={showTheory ? quantumTimeAvg : null}
-                  col={COL_QUANTUM}
-                  ink={COL_INK}
-                  inkDim={COL_INK_DIM}
-                  rule={COL_RULE}
-                  styles={styles}
-                  label={null}
-                  recentMarkers={recentPosMeasRef.current}
-                  accentColor={COL_QUANTUM}
-                  meanX={quantumPosMeasRef.current > 0 ? quantumPosSumRef.current / quantumPosMeasRef.current : null}
-                />
-              </div>
+              {/* row 1: 2D box (left) + P(E) sharing the energy y-axis (right) */}
+              <BoxSimView
+                kind="quantum"
+                density={psiDisplayDensity}
+                recentMeasurements={recentPosMeasRef.current}
+                eSet={energy}
+                eigenValues={eigenE}
+                showEigen={showEigen}
+                showWave={showTheory}
+                col={COL_QUANTUM}
+                ink={COL_INK}
+                inkDim={COL_INK_DIM}
+                bg={COL_PANEL}
+                styles={styles}
+                accentColor={COL_ACCENT}
+              />
               <VerticalEnergyHistogram
                 density={quantumEnergyDensity}
                 eigenValues={eigenE}
-                theoretical={showTheory ? Array.from(probs) : null}
+                theoryCurve={showTheory ? energyTheoryCurves.quantum : null}
+                logY={logE}
+                onToggleLog={() => setLogE(!logE)}
                 col={COL_QUANTUM}
                 ink={COL_INK}
                 inkDim={COL_INK_DIM}
@@ -1242,6 +1278,27 @@ function ParticleQuoVadis() {
                 eSet={energy}
                 accentColor={COL_ACCENT}
                 meanE={quantumEnergyMeasRef.current > 0 ? quantumEnergySumRef.current / quantumEnergyMeasRef.current : null}
+              />
+              {/* row 2: P(x) sharing the x-axis (left) + summary (right) */}
+              <PositionHistogram
+                hist={rebinDensity(quantumPosDensity, histBins)}
+                overlay={showTheory ? quantumTimeAvg : null}
+                col={COL_QUANTUM}
+                ink={COL_INK}
+                inkDim={COL_INK_DIM}
+                rule={COL_RULE}
+                styles={styles}
+                label={null}
+                recentMarkers={recentPosMeasRef.current}
+                accentColor={COL_QUANTUM}
+                meanX={quantumPosMeasRef.current > 0 ? quantumPosSumRef.current / quantumPosMeasRef.current : null}
+              />
+              <PanelSummary
+                meanX={quantumPosMeasRef.current > 0 ? quantumPosSumRef.current / quantumPosMeasRef.current : null}
+                meanE={quantumEnergyMeasRef.current > 0 ? quantumEnergySumRef.current / quantumEnergyMeasRef.current : null}
+                col={COL_QUANTUM}
+                inkDim={COL_INK_DIM}
+                styles={styles}
               />
             </div>
           </section>
@@ -1501,7 +1558,7 @@ function PreferenceNumberRow({ label, value, onChange, min, max, accent, ink, in
   }
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', fontFamily: mono, fontSize: 14, color: ink, height: 22 }}>
-      <span style={{ color: ink, letterSpacing: 0.3 }}>{label}</span>
+      <span style={{ color: ink, letterSpacing: 0.3, whiteSpace: 'nowrap' }}>{label}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <button
           onClick={() => onChange(Math.max(min, value - 1))}
@@ -1749,6 +1806,91 @@ function WavefunctionView({ density, recentMeasurements, col, ink, inkDim, bg, s
   );
 }
 
+// ---------- 2D box view: position (x) × energy (E), sharing the P(E) y-axis ----------
+// The box is fully enclosed (infinite well — walls run the full height, no
+// ceiling, no escape). The energy axis (E = 0 at the floor, E_HIST_MAX at the
+// top) matches the vertical energy histogram next door pixel-for-pixel, so the
+// eigenstate levels line up across both. The live |ψ(x,t)|² band (quantum) and
+// the particle dot (classical) sit at the set-energy level.
+function BoxSimView({ kind, density, particleX, recentMeasurements, eSet, eigenValues, showEigen, showWave, col, ink, inkDim, bg, styles, accentColor }) {
+  const W = 480, H = 240;
+  const PAD_L = 60, PAD_R = 60, PAD_T = 18, PAD_B = 30;
+  const innerW = W - PAD_L - PAD_R;
+  const innerH = H - PAD_T - PAD_B;
+  const floorY = PAD_T + innerH;          // E = 0
+  const topY = PAD_T;                      // E = E_HIST_MAX
+  const xToX = (x) => PAD_L + x * innerW;
+  const eToY = (E) => floorY - Math.max(0, Math.min(1, E / E_HIST_MAX)) * innerH;
+  const boxL = xToX(0), boxR = xToX(1);
+  const setY = eToY(eSet);
+
+  // Quantum |ψ(x,t)|² drawn as a band sitting on the set-energy line.
+  const BAND_H = 50;
+  let dMax = 0;
+  if (density) for (const p of density) if (p.d > dMax) dMax = p.d;
+  dMax = dMax * 1.1 || 1;
+  let bandPath = '';
+  if (density && showWave) {
+    for (let i = 0; i < density.length; i++) {
+      const X = xToX(density[i].x).toFixed(2);
+      const Y = (setY - (density[i].d / dMax) * BAND_H).toFixed(2);
+      bandPath += (i === 0 ? `M${X},${setY.toFixed(2)} L${X},${Y}` : `L${X},${Y}`);
+    }
+    bandPath += ` L${boxR.toFixed(2)},${setY.toFixed(2)} Z`;
+  }
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', width: '100%', height: 'auto', alignSelf: 'start', background: bg, borderRadius: 2 }}>
+      {/* floor (E = 0) */}
+      <line x1={boxL} x2={boxR} y1={floorY} y2={floorY} stroke={inkDim} strokeWidth={1} opacity={0.5} />
+      {/* eigenstate levels (Show eigenstates) — line up with the P(E) ticks next door */}
+      {showEigen && eigenValues.map((E, i) => {
+        if (E > E_HIST_MAX) return null;
+        const Y = eToY(E);
+        return (
+          <g key={i}>
+            <line x1={boxL} x2={boxR} y1={Y} y2={Y} stroke={inkDim} strokeWidth={1} strokeDasharray="2 5" opacity={0.4} />
+            <text x={boxL - 5} y={Y + 3} textAnchor="end" fill={inkDim} fontSize={10} fontFamily={styles.mono} opacity={0.7}>{i + 1}</text>
+          </g>
+        );
+      })}
+      {/* set-energy line — where the prepared state lives */}
+      <line x1={boxL} x2={boxR} y1={setY} y2={setY} stroke={accentColor || col} strokeWidth={1.5} strokeDasharray="4 3" opacity={0.85} />
+      {/* quantum |ψ|² band at the set energy */}
+      {bandPath && <path d={bandPath} fill={col} fillOpacity={0.25} stroke={col} strokeWidth={2} />}
+      {/* classical particle riding the set-energy line */}
+      {particleX !== undefined && particleX !== null && (
+        <circle cx={xToX(particleX)} cy={setY} r={6} fill={col} fillOpacity={0.9} stroke={col} strokeWidth={1.5} />
+      )}
+      {/* recent position flashes along the set-energy line */}
+      {recentMeasurements && recentMeasurements.map((m, i) => {
+        const opacity = Math.max(0, 1 - m.age / FLASH_AGE);
+        const r = 1.5 + (1 - m.age / FLASH_AGE) * 3;
+        return <circle key={i} cx={xToX(m.x)} cy={setY} r={r} fill={col} opacity={opacity * 0.85} />;
+      })}
+      {/* walls — full height (infinite well: enclosed, no escape) */}
+      <line x1={boxL} x2={boxL} y1={topY} y2={floorY} stroke={ink} strokeWidth={5} />
+      <line x1={boxR} x2={boxR} y1={topY} y2={floorY} stroke={ink} strokeWidth={5} />
+      {/* status label (quantum only) */}
+      {kind === 'quantum' && (
+        <text x={(boxL + boxR) / 2} y={topY - 6} fill={showWave ? col : inkDim} fontSize={12} fontFamily={styles.mono} textAnchor="middle" opacity={showWave ? 0.9 : 0.7}>
+          {showWave ? '|ψ(x,t)|² at E_set' : 'measurements only'}
+        </text>
+      )}
+    </svg>
+  );
+}
+
+// ---------- Panel summary (bottom-right cell): ⟨x⟩ and ⟨E⟩ readouts ----------
+function PanelSummary({ meanX, meanE, col, inkDim, styles }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8, paddingLeft: 8, fontFamily: styles.mono, fontSize: 12, color: inkDim }}>
+      <div>⟨x⟩ <span style={{ color: col, fontVariantNumeric: 'tabular-nums' }}>{meanX != null ? meanX.toFixed(2) + 'L' : '—'}</span></div>
+      <div>⟨E⟩ <span style={{ color: col, fontVariantNumeric: 'tabular-nums' }}>{meanE != null ? meanE.toFixed(1) : '—'}</span></div>
+    </div>
+  );
+}
+
 // ---------- Position histogram ----------
 // y-axis is auto-scaled to 1.15× the maximum of data + theory overlay, with a
 // stable floor so an empty histogram doesn't render absurdly tall bars.
@@ -1819,13 +1961,7 @@ function PositionHistogram({ hist, overlay, col, ink, inkDim, rule, styles, labe
         <text x={PAD.l - 8} y={PAD.t + 10} textAnchor="end" fill={inkDim} fontSize={15} fontFamily={styles.mono} fontWeight={500} fontStyle="italic">P(x)</text>
         <text x={PAD.l + innerW / 2} y={axisY + 42} textAnchor="middle" fill={inkDim} fontSize={16} fontFamily={styles.mono} fontWeight={500} fontStyle="italic">x</text>
 
-        {/* ⟨x⟩ overlay — upper-right corner */}
-        {meanX !== undefined && meanX !== null && (
-          <text x={PAD.l + innerW - 6} y={PAD.t + 15} textAnchor="end" fontFamily={styles.mono} fontSize={18} fontWeight={500} fontVariantNumeric="tabular-nums">
-            <tspan fill={inkDim}>⟨x⟩ = </tspan>
-            <tspan fill={col}>{meanX.toFixed(2)}<tspan fill={inkDim}>L</tspan></tspan>
-          </text>
-        )}
+        {/* ⟨x⟩ now shown in the panel summary cell */}
       </svg>
     </div>
   );
@@ -1836,9 +1972,11 @@ function PositionHistogram({ hist, overlay, col, ink, inkDim, rule, styles, labe
 // the energy axis runs vertically — matches the sibling app's panel layout.
 // Bars grow leftward from the right-hand axis. Infinite well: no V₀, continuum,
 // or log axis.
-function VerticalEnergyHistogram({ density, eigenValues, theoretical, col, ink, inkDim, rule, styles, showEigen, recentMarkers, eSet, accentColor, meanE }) {
-  const W = 130, H = 220;
-  const PAD = { l: 8, r: 32, t: 26, b: 16 };
+function VerticalEnergyHistogram({ density, eigenValues, theoryCurve, col, ink, inkDim, rule, styles, showEigen, recentMarkers, eSet, accentColor, meanE, logY, onToggleLog }) {
+  // Shares the box sim's energy geometry (H = 240, same top/bottom pads) so the
+  // eigenstate levels and energy scale line up pixel-for-pixel with the sim.
+  const W = 130, H = 240;
+  const PAD = { l: 8, r: 32, t: 18, b: 30 };
   const innerW = W - PAD.l - PAD.r;
   const innerH = H - PAD.t - PAD.b;
 
@@ -1849,8 +1987,19 @@ function VerticalEnergyHistogram({ density, eigenValues, theoretical, col, ink, 
   const axisYbot = PAD.t + innerH;
 
   const dataMax = density && density.length ? Math.max(...density) : 0;
-  const xMax = Math.max(dataMax, 0.005) * 1.25;
-  function xScale(d) { return axisX - Math.min(1, d / xMax) * innerW; }
+  const theoryMax = theoryCurve ? theoryCurve.reduce((a, p) => (p.d > a ? p.d : a), 0) : 0;
+  const autoMax = Math.max(dataMax, theoryMax, 0.005);
+  // Density → x; bars grow LEFT from the right-hand axis. Log mode spans three
+  // decades down from the peak (matches the sibling app's P(E) log option).
+  const linXMax = autoMax * 1.25;
+  const logXMax = autoMax;
+  const logXMin = logXMax / 1000;
+  function xScale(d) {
+    if (!logY) return axisX - Math.min(1, d / linXMax) * innerW;
+    if (d <= 0) return axisX;
+    const frac = (Math.log10(Math.max(d, logXMin)) - Math.log10(logXMin)) / (Math.log10(logXMax) - Math.log10(logXMin));
+    return axisX - Math.max(0, Math.min(1, frac)) * innerW;
+  }
 
   const NB = density ? density.length : 0;
   const bars = density ? density.map((v, i) => {
@@ -1861,23 +2010,25 @@ function VerticalEnergyHistogram({ density, eigenValues, theoretical, col, ink, 
     return <rect key={i} x={Xl} y={Y1 + 0.5} width={Math.max(1, axisX - Xl)} height={Math.max(1, Y2 - Y1 - 1)} fill={col} opacity={0.7} />;
   }) : null;
 
-  // Theory marks: horizontal dashed lines at each eigenvalue, length ∝ |c_n|².
-  const theoryMarks = theoretical ? theoretical.map((p, i) => {
-    if (p <= 0.002) return null;
-    const Y = yScale(eigenValues[i]);
-    const effD = p / (E_HIST_MAX / NB);
-    const Xl = xScale(effD);
-    return <line key={i} x1={Xl} x2={axisX} y1={Y} y2={Y} stroke={col} strokeOpacity={0.65} strokeWidth={2} strokeDasharray="3 2" />;
-  }) : null;
+  // Smooth analytical curve (Gaussian-broadened P(E)) for "Show theory" —
+  // matches the sibling app rather than the old discrete eigenvalue ticks.
+  const theoryPath = theoryCurve
+    ? theoryCurve.map((p, i) => `${i === 0 ? 'M' : 'L'}${xScale(p.d).toFixed(2)},${yScale(p.E).toFixed(2)}`).join(' ')
+    : null;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" style={{ display: 'block', width: '100%', height: '100%' }}>
+    <div
+      onClick={onToggleLog}
+      title={onToggleLog ? 'Click to toggle linear / log P(E) scale' : undefined}
+      style={{ position: 'relative', width: '100%', cursor: onToggleLog ? 'pointer' : 'default' }}
+    >
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }}>
       {/* y-axis (right) + bottom baseline */}
       <line x1={axisX} x2={axisX} y1={PAD.t} y2={axisYbot} stroke={rule} strokeWidth={1.5} />
       <line x1={baseX} x2={axisX} y1={axisYbot} y2={axisYbot} stroke={rule} strokeWidth={1.5} />
 
       {bars}
-      {theoryMarks}
+      {theoryPath && <path d={theoryPath} fill="none" stroke={col} strokeWidth={2} opacity={0.9} vectorEffect="non-scaling-stroke" />}
 
       {/* set-energy horizontal line */}
       {eSet !== undefined && (
@@ -1910,14 +2061,10 @@ function VerticalEnergyHistogram({ density, eigenValues, theoretical, col, ink, 
         </g>
       ))}
 
-      {/* labels: P(E) and ⟨E⟩ at the top */}
-      <text x={baseX} y={11} textAnchor="start" fill={inkDim} fontSize={13} fontFamily={styles.mono} fontStyle="italic">P(E)</text>
-      {meanE !== undefined && meanE !== null && (
-        <text x={baseX} y={22} textAnchor="start" fontFamily={styles.mono} fontSize={11} fontWeight={500} fontVariantNumeric="tabular-nums">
-          <tspan fill={inkDim}>⟨E⟩=</tspan><tspan fill={col}>{meanE.toFixed(1)}</tspan>
-        </text>
-      )}
-    </svg>
+      {/* label: P(E) at the top (⟨E⟩ lives in the panel summary cell now) */}
+      <text x={baseX} y={11} textAnchor="start" fill={inkDim} fontSize={13} fontFamily={styles.mono} fontStyle="italic">P(E){logY ? <tspan fontSize={9} fontStyle="normal" fill={accentColor || inkDim}> log</tspan> : null}</text>
+      </svg>
+    </div>
   );
 }
 
